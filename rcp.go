@@ -71,21 +71,22 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if err != nil {
 		return nil, err
 	}
-	//noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
-
-	resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
 
 	//log.Printf("MIS %s %s (%d)", req.Method, req.URL, resp.StatusCode)
 
 	if useCache && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 		respData := bytes.Buffer{}
 		err := resp.Write(&respData)
 		if err != nil {
 			log.Printf("unable to write response: %v", err)
 		} else {
+			respDataBase64 := base64.StdEncoding.EncodeToString(respData.Bytes())
 			go func() {
-				respDataBase64 := base64.StdEncoding.EncodeToString(respData.Bytes())
 				_, err = t.redisClient.Set(cacheKey, respDataBase64, t.cacheTTL).Result()
 				if err != nil {
 					log.Printf("unable to set %q: %v", cacheKey, err)
@@ -94,6 +95,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		}
 	}
 
+	resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 	return resp, nil
 }
 
