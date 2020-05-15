@@ -10,5 +10,6 @@ ENV RCP_UPSTREAM_URL="http://upstream" \
     RCP_REDIS_URL="redis://redis:6379" \
     RCP_CACHE_PREFIX="rcp" \
     RCP_CACHE_TTL="5m" \
-    RCP_FRONTEND_URL=":80"
+    RCP_FRONTEND_URL=":80" \
+    RCP_LOG_LEVEL="info"
 COPY --from=golang /src/rcp /usr/local/bin/rcp

@@ -6,8 +6,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/go-redis/redis/v7"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -32,18 +32,18 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		respDataBase64, err := t.redisClient.Get(cacheKey).Result()
 		if err != nil {
 			if err != redis.Nil {
-				log.Printf("unable to get %q: %v", cacheKey, err)
+				log.Warnf("unable to get %q: %v", cacheKey, err)
 			}
 		} else {
 			respData, err := base64.StdEncoding.DecodeString(respDataBase64)
 			if err != nil {
-				log.Printf("unable to decode response: %v", err)
+				log.Errorf("unable to decode response: %v", err)
 			} else {
 				resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respData)), req)
 				if err != nil {
-					log.Printf("unable to read response: %v", err)
+					log.Errorf("unable to read response: %v", err)
 				} else {
-					//log.Printf("HIT %s %s (%d)", req.Method, req.URL, resp.StatusCode)
+					log.Infof("HIT %s %s (%d)", req.Method, req.URL, resp.StatusCode)
 					return resp, nil
 				}
 			}
@@ -52,54 +52,69 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	req.Host = req.URL.Host
 
-	//reqData, err := httputil.DumpRequest(req, true)
-	//if err == nil {
-	//	log.Println(string(reqData))
-	//}
+	if log.IsLevelEnabled(log.DebugLevel) {
+		if reqData, err := httputil.DumpRequest(req, log.IsLevelEnabled(log.TraceLevel)); err == nil {
+			log.Debug(string(reqData))
+		}
+	}
 
 	resp, err := t.delegate.RoundTrip(req)
 	if err != nil {
+		log.Errorf("unable to execute round trip to upstream: %v", err)
 		return nil, err
 	}
 
-	//respData, err := httputil.DumpResponse(resp, true)
-	//if err == nil {
-	//	log.Println(string(respData))
-	//}
+	if log.IsLevelEnabled(log.DebugLevel) {
+		if respData, err := httputil.DumpResponse(resp, log.IsLevelEnabled(log.TraceLevel)); err == nil {
+			log.Debug(string(respData))
+		}
+	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		log.Errorf("unable to read upstream body: %v", err)
 		return nil, err
 	}
 	err = resp.Body.Close()
 	if err != nil {
+		log.Warnf("unable to close upstream body: %v", err)
 		return nil, err
 	}
 
-	//log.Printf("MIS %s %s (%d)", req.Method, req.URL, resp.StatusCode)
-
 	if useCache && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-		respData := bytes.Buffer{}
-		err := resp.Write(&respData)
-		if err != nil {
-			log.Printf("unable to write response: %v", err)
-		} else {
-			respDataBase64 := base64.StdEncoding.EncodeToString(respData.Bytes())
-			go func() {
+		go func() {
+			resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+			respData := bytes.Buffer{}
+			err := resp.Write(&respData)
+			if err != nil {
+				log.Errorf("unable to write response: %v", err)
+			} else {
+				respDataBase64 := base64.StdEncoding.EncodeToString(respData.Bytes())
 				_, err = t.redisClient.Set(cacheKey, respDataBase64, t.cacheTTL).Result()
 				if err != nil {
-					log.Printf("unable to set %q: %v", cacheKey, err)
+					log.Errorf("unable to set %q: %v", cacheKey, err)
 				}
-			}()
-		}
+			}
+		}()
 	}
+
+	log.Infof("MISS %s %s (%d)", req.Method, req.URL, resp.StatusCode)
 
 	resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 	return resp, nil
 }
 
 func run() error {
+
+	logLevelAsString := os.Getenv("RCP_LOG_LEVEL")
+	if logLevelAsString == "" {
+		logLevelAsString = "info"
+	}
+	logLevel, err := log.ParseLevel(logLevelAsString)
+	if err != nil {
+		return err
+	}
+	log.SetLevel(logLevel)
 
 	upstreamUrlAsString := os.Getenv("RCP_UPSTREAM_URL")
 	if upstreamUrlAsString == "" {
@@ -154,6 +169,6 @@ func run() error {
 func main() {
 	err := run()
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 }
