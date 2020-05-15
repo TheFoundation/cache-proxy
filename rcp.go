@@ -82,20 +82,20 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	if useCache && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		go func() {
-			resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-			respData := bytes.Buffer{}
-			err := resp.Write(&respData)
-			if err != nil {
-				log.Errorf("unable to write response: %v", err)
-			} else {
+		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+		respData := bytes.Buffer{}
+		err := resp.Write(&respData)
+		if err != nil {
+			log.Errorf("unable to write response: %v", err)
+		} else {
+			go func() {
 				respDataBase64 := base64.StdEncoding.EncodeToString(respData.Bytes())
 				_, err = t.redisClient.Set(cacheKey, respDataBase64, t.cacheTTL).Result()
 				if err != nil {
 					log.Errorf("unable to set %q: %v", cacheKey, err)
 				}
-			}
-		}()
+			}()
+		}
 	}
 
 	log.Infof("MISS %s %s (%d)", req.Method, req.URL, resp.StatusCode)
