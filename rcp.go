@@ -43,7 +43,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 				if err != nil {
 					log.Printf("unable to read response: %v", err)
 				} else {
-					log.Printf("HIT %s %s (%d)", req.Method, req.URL, resp.StatusCode)
+					//log.Printf("HIT %s %s (%d)", req.Method, req.URL, resp.StatusCode)
 					return resp, nil
 				}
 			}
@@ -76,7 +76,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 
-	log.Printf("MIS %s %s (%d)", req.Method, req.URL, resp.StatusCode)
+	//log.Printf("MIS %s %s (%d)", req.Method, req.URL, resp.StatusCode)
 
 	if useCache && resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		respData := bytes.Buffer{}
