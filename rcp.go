@@ -8,10 +8,12 @@ import (
 	"github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -125,6 +127,15 @@ func run() error {
 		return err
 	}
 
+	attemptHTTP2AsString := os.Getenv("RCP_ATTEMPT_HTTP2")
+	if attemptHTTP2AsString == "" {
+		attemptHTTP2AsString = "false"
+	}
+	attemptHTTP2, err := strconv.ParseBool(attemptHTTP2AsString)
+	if err != nil {
+		return err
+	}
+
 	redisUrl := os.Getenv("RCP_REDIS_URL")
 	if redisUrl == "" {
 		redisUrl = "redis://localhost:6379"
@@ -155,9 +166,19 @@ func run() error {
 	}
 	redisClient := redis.NewClient(redisOptions)
 
+	delegateTransport := http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+		MaxIdleConns:          10,
+		IdleConnTimeout:       120 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     attemptHTTP2,
+	}
+
 	proxy := httputil.NewSingleHostReverseProxy(upstreamUrl)
 	proxy.Transport = &cachingTransport{
-		delegate:    http.DefaultTransport,
+		delegate:    &delegateTransport,
 		redisClient: redisClient,
 		cachePrefix: cachePrefix,
 		cacheTTL:    cacheTTL,
