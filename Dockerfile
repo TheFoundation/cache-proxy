@@ -7,6 +7,7 @@ FROM alpine:3.11
 ENTRYPOINT ["/usr/local/bin/rcp"]
 EXPOSE 80
 ENV RCP_UPSTREAM_URL="http://upstream" \
+    RCP_ATTEMPT_HTTP2="false" \
     RCP_REDIS_URL="redis://redis:6379" \
     RCP_CACHE_PREFIX="rcp" \
     RCP_CACHE_TTL="5m" \

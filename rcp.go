@@ -62,8 +62,16 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	resp, err := t.delegate.RoundTrip(req)
 	if err != nil {
-		log.Errorf("unable to execute round trip to upstream: %v", err)
-		return nil, err
+		if useCache {
+			log.Warnf("first try: unable to execute round trip to upstream: %v", err)
+			time.Sleep(1 * time.Second)
+			err = nil
+			resp, err = t.delegate.RoundTrip(req)
+		}
+		if err != nil {
+			log.Errorf("unable to execute round trip to upstream: %v", err)
+			return nil, err
+		}
 	}
 
 	if log.IsLevelEnabled(log.DebugLevel) {
@@ -168,11 +176,11 @@ func run() error {
 
 	delegateTransport := http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+		DialContext:           (&net.Dialer{Timeout: 15 * time.Second}).DialContext,
 		MaxIdleConns:          10,
 		IdleConnTimeout:       120 * time.Second,
-		TLSHandshakeTimeout:   5 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ExpectContinueTimeout: 5 * time.Second,
 		ForceAttemptHTTP2:     attemptHTTP2,
 	}
 
