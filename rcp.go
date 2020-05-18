@@ -26,6 +26,8 @@ type cachingTransport struct {
 
 func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
+	start := time.Now()
+
 	useCache := req.Method == "HEAD" || req.Method == "GET"
 
 	cacheKey := fmt.Sprintf("%s:%s", t.cachePrefix, req.URL.String())
@@ -45,7 +47,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 				if err != nil {
 					log.Errorf("unable to read response: %v", err)
 				} else {
-					log.Infof("HIT %s %s (%d)", req.Method, req.URL, resp.StatusCode)
+					log.Infof("HIT %s %s (%d) %s", req.Method, req.URL, resp.StatusCode, time.Now().Sub(start))
 					return resp, nil
 				}
 			}
@@ -108,7 +110,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		}
 	}
 
-	log.Infof("MISS %s %s (%d)", req.Method, req.URL, resp.StatusCode)
+	log.Infof("MISS %s %s (%d) %s", req.Method, req.URL, resp.StatusCode, time.Now().Sub(start))
 
 	resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 	return resp, nil
