@@ -1,16 +1,15 @@
-FROM golang:1.14-alpine3.11 AS golang
+FROM golang:1.14-buster AS golang
 WORKDIR /src
 COPY . ./
-RUN go build -o rcp
+RUN go build -o cache-proxy
 
-FROM alpine:3.11
-ENTRYPOINT ["/usr/local/bin/rcp"]
+FROM debian:buster
+CMD ["/usr/local/bin/cache-proxy"]
 EXPOSE 80
-ENV RCP_UPSTREAM_URL="http://upstream" \
-    RCP_ATTEMPT_HTTP2="false" \
-    RCP_REDIS_URL="redis://redis:6379" \
-    RCP_CACHE_PREFIX="rcp" \
-    RCP_CACHE_TTL="5m" \
-    RCP_FRONTEND_URL=":80" \
-    RCP_LOG_LEVEL="info"
-COPY --from=golang /src/rcp /usr/local/bin/rcp
+ENV LOG_LEVEL="info" \
+    ATTEMPT_HTTP2="false" \
+    TTL="5m" \
+    FRONTEND_URL=":80" \
+    BACKEND_URL="badger:///var/cache-proxy"
+COPY --from=golang /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=golang /src/cache-proxy /usr/local/bin/cache-proxy
