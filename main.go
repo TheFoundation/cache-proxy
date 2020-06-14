@@ -93,5 +93,6 @@ func run() error {
 		cache: backend,
 	}
 
+	log.Infof("Listen %s", frontendUrl)
 	return http.ListenAndServe(frontendUrl, proxy)
 }

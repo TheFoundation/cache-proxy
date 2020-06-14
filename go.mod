@@ -1,4 +1,4 @@
-module redis-cache-proxy
+module cache-proxy
 
 go 1.14
 
