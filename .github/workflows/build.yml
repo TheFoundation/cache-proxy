@@ -1,0 +1,141 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'main'
+  schedule:
+    - cron: '0 4 * * 0'
+# Run weekly, at 00:00 on sunday
+#    tags:
+#      - 'v*.*.*'
+  pull_request:
+    branches:
+      - 'dev'
+      - 'testing'
+# permissions are needed if pushing to ghcr.io
+permissions:
+  packages: write
+
+env:
+  REGISTRY_GITHUB: ghcr.io
+  REGISTRY_DOCKER: index.docker.io
+  GH_IMAGE_NAME: ghcr.io/${{ github.repository }}
+  DH_IMAGE_NAME: index.docker.io/thefoundation
+  CI_REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+ #QA_REGISTRY_IMAGE: quay.io/thefoundation/library:${{ github.event.repository.name }}
+ #QU_REGISTRY_IMAGE: quay.io/${{ github.repository }}/${{ github.event.repository.name }}
+  BUILDCACHE: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+  #BUILDCACHE: ghcr.io/${{ github.repository_owner }}/buildcache
+  #PLATFORMS: "linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8"
+  PLATFORMS: "linux/amd64"
+  PLATFORMS_ALPINE: "linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8"
+  #PLATFORMS: "linux/amd64,linux/arm64/v8"
+  #PLATFORMS: "linux/amd64,linux/arm64/v8"
+
+jobs:
+  # Push image to GitHub Packages.
+  # See also https://docs.docker.com/docker-hub/builds/
+######  upstream:
+######    runs-on: ubuntu-latest
+######    environment: build
+######    permissions:
+######      packages: read
+######      contents: read
+######    if: github.repository_owner == 'TheFoundation'
+######    steps:
+######      - uses: actions/checkout@v3
+######      - name: prep-downstream
+######        run: |
+######             mkdir downstream
+######             cp -aurv _build_hocker.sh .github downstream &
+######             tar cv . |md5sum |cut -d" " -f1 > downstream/.md5sum_of_tar
+######             bash build/_generate_downstream_readme.sh thefoundation-builder hocker-builder-github > downstream/README.md
+######             wait
+#######      - uses: cpina/github-action-push-to-another-repository@main
+######      - uses: TheFoundation/github-action-push-to-another-repository@main
+######        env:
+######          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+#######          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+######        with:
+######          source-directory: 'downstream'
+######          destination-github-username: 'thefoundation-builder'
+######          destination-repository-name: 'hocker-builder-github'
+######          user-email: actions@github.com
+######          target-branch: main
+
+  build-base:
+    runs-on: ubuntu-latest
+    env:
+     #QAAY_PASS: ${{ secrets.QUAY_PASS }}
+     #QAAY_USER: ${{ secrets.QUAY_USER }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      APT_HTTP_PROXY_URL: ${{ secrets.APT_HTTP_PROXY_URL }}
+
+    environment: push-dockerhub
+    permissions:
+      packages: write
+      contents: read
+    if: github.repository_owner == 'TheFoundation'
+    steps:
+      - name: downcase REPO1
+        run: |
+            echo "BUILDCACHE=${BUILDCACHE,,}" >>${GITHUB_ENV}
+            echo "CI_REGISTRY_IMAGE=${CI_REGISTRY_IMAGE,,}" >>${GITHUB_ENV}
+            echo "DH_IMAGE_NAME=${DH_IMAGE_NAME,,}" >>${GITHUB_ENV}
+            echo "GH_IMAGE_NAME=${GH_IMAGE_NAME,,}" >>${GITHUB_ENV}
+
+      - uses: actions/checkout@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Show sources and Targets
+        run: |
+            echo "BUILDCACHE=${BUILDCACHE} | CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE QU_REGISTRY_IMAGE=$QU_REGISTRY_IMAGE |"
+            echo "PLATFORMS_AVAIL: ${{ steps.buildx.outputs.platforms }}"
+#      - name: Login to Docker Hub
+#        uses: docker/login-action@v2
+#        with:
+#          username: ${{ secrets.DOCKERHUB_USERNAME }}
+#          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      -
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: current images
+        run: docker image ls
+      - name: show steps
+        run: echo "pushing to $CI_REGISTRY_IMAGE cached by $BUILDCACHE"
+      - name: show cmd
+#        run: sudo /bin/bash -c "export REGISTRY_PASSWORD=$REGISTRY_PASSWORD;export REGISTRY_HOST=docker.io;export REGISTRY_PROJECT=thefoundation;export PROJECT_NAME=hocker;export REGISTRY_USER=${{ secrets.REGISTRY_USER }} ;bash _build_hocker.sh base-focal "
+        run: echo docker buildx build --platform ${PLATFORMS}  --push --pull --cache-to=type=registry,ref=$BUILDCACHE:zzz_buildcache_${{ github.event.repository.name }} --cache-from=type=registry,ref=$BUILDCACHE:zzz_buildcache_${{ github.event.repository.name }} -t $CI_REGISTRY_IMAGE:latest  -f Dockerfile .
+
+      - name: build images
+#        run: sudo /bin/bash -c "export REGISTRY_PASSWORD=$REGISTRY_PASSWORD;export REGISTRY_HOST=docker.io;export REGISTRY_PROJECT=thefoundation;export PROJECT_NAME=library;export REGISTRY_USER=${{ secrets.REGISTRY_USER }} ;bash _build_hocker.sh base-focal "
+        run: docker buildx build --platform ${PLATFORMS}  --push --pull --cache-to=type=registry,ref=$BUILDCACHE:zzz_buildcache_${{ github.event.repository.name }} --cache-from=type=registry,ref=$BUILDCACHE:zzz_buildcache_${{ github.event.repository.name }} -t $CI_REGISTRY_IMAGE:latest  -f Dockerfile .
+#      -  name: Login to Quay Container Registry
+#        uses: docker/login-action@v2
+#        with:
+#          registry: quay.io
+#          username: ${{ secrets.QUAY_USER }}
+#          password: ${{ secrets.QUAY_PASS }}
+#      - name: build images to quay
+##        run: sudo /bin/bash -c "export REGISTRY_PASSWORD=$QUAY_PASS;export REGISTRY_HOST=quay.io;export REGISTRY_PROJECT=thefoundation;export PROJECT_NAME=libary;export REGISTRY_USER=${{ secrets.QUAY_USER }} ;bash _build_hocker.sh base-focal "
+#        run: docker buildx build --platform ${PLATFORMS}  --push --pull --cache-to=type=registry,ref=$BUILDCACHE:zzz_buildcache_${{ github.event.repository.name }} --cache-from=type=registry,ref=$BUILDCACHE:zzz_buildcache_${{ github.event.repository.name }} -t $QU_REGISTRY_IMAGE  -f Dockerfile .
+
+      - name: show files
+#        run: bash -c "ls buildlogs/  -lh1 ; tail -n 20 buildlogs/*"
+        run: docker image ls
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+         name: buildlogs
+         path: |
+              buildlogs
