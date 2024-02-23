@@ -1,11 +1,13 @@
-FROM golang:1.14-buster AS golang
+#FROM golang:1.14-buster AS golang
+FROM golang:alpine as build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . ./
 RUN go build -o cache-proxy
 
-FROM debian:buster
+#FROM debian:buster
+FROM alpine
 CMD ["/usr/local/bin/cache-proxy"]
 EXPOSE 80
 ENV LOG_LEVEL="info" \

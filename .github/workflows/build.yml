@@ -6,7 +6,7 @@ on:
       - 'master'
       - 'main'
   schedule:
-    - cron: '0 4 * * 0'
+    - cron: '23 1 * * 0'
 # Run weekly, at 00:00 on sunday
 #    tags:
 #      - 'v*.*.*'
