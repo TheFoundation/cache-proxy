@@ -1,5 +1,5 @@
 #FROM golang:1.14-buster AS golang
-FROM golang:alpine as build
+FROM golang:alpine as golang
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
