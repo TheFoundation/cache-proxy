@@ -3,17 +3,28 @@ package main
 import (
 	"bytes"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type cacher interface {
 	get(*http.Request) (*http.Response, error)
 	set(*http.Request, *http.Response) error
+}
+
+type noopCacher struct{}
+
+func (c *noopCacher) get(*http.Request) (*http.Response, error) {
+	return nil, nil
+}
+
+func (c *noopCacher) set(*http.Request, *http.Response) error {
+	return nil
 }
 
 type cachingTransport struct {
@@ -106,6 +117,8 @@ func newBackend(url *url.URL) (cacher, error) {
 		return newRedisCache(url)
 	case "badger":
 		return newBadgerCache(url)
+	case "noop":
+		return &noopCacher{}, nil
 	}
 	return nil, fmt.Errorf("invalid cache backend %q", url.Scheme)
 }
