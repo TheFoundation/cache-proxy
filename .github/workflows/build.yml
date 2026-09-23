@@ -46,7 +46,7 @@ jobs:
 ######      contents: read
 ######    if: github.repository_owner == 'TheFoundation'
 ######    steps:
-######      - uses: actions/checkout@v3
+######      - uses: actions/checkout@v5
 ######      - name: prep-downstream
 ######        run: |
 ######             mkdir downstream
@@ -87,7 +87,7 @@ jobs:
             echo "DH_IMAGE_NAME=${DH_IMAGE_NAME,,}" >>${GITHUB_ENV}
             echo "GH_IMAGE_NAME=${GH_IMAGE_NAME,,}" >>${GITHUB_ENV}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
@@ -134,7 +134,7 @@ jobs:
 #        run: bash -c "ls buildlogs/  -lh1 ; tail -n 20 buildlogs/*"
         run: docker image ls
       - name: Archive production artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5
         if: failure()
         with:
          name: buildlogs
